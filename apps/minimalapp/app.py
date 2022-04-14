@@ -1,3 +1,7 @@
+# loggingをimportする
+import logging
+import os
+
 from email_validator import validate_email, EmailNotValidError
 # import文が長くなるため改行
 from flask import (
@@ -10,11 +14,32 @@ from flask import (
     url_for,
     flash,
 )
+from flask_debugtoolbar import DebugToolbarExtension
+
+# flask_mailからMessageを追加でimportする
+from flask_mail import Mail, Message
 
 # Flaskクラスをインスタンス化する
 app = Flask(__name__)
 # SECRET_KEYを追加する
 app.config["SECRET_KEY"] = "2AZSMss3p5QPbcY2hBsJ"
+# ログレベルを設定する
+app.logger.setLevel(logging.DEBUG)
+# リダイレクトを中断しないようにする
+app.config["DEBUG_TB_INTERCEPT_REDIRECTS"] = False
+# DebugToolBarExtentionにアプリケーションをセットする
+toolbar = DebugToolbarExtension(app)
+
+# Mailクラスのコンフィグを追加する
+app.config["MAIL_SERVER"] = os.environ.get("MAIL_SERVER")
+app.config["MAIL_PORT"] = os.environ.get("MAIL_PORT")
+app.config["MAIL_USE_TLS"] = os.environ.get("MAIL_USE_TLS")
+app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
+app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
+app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER")
+
+# flask-mail拡張を登録する
+mail = Mail(app)
 
 
 # URLと実行する関数をマッピングする
@@ -100,10 +125,25 @@ def contact_complete():
         if not is_valid:
             return redirect(url_for("contact"))
 
-        # メールを送る(最後に実装)
+        # メールを送る
+        send_email(
+            email,
+            "問い合わせありがとうございました。",
+            "contact_mail",
+            username=username,
+            description=description,
+        )
 
         # 問い合わせ完了エンドポイントへリダイレクトする
         flash("問い合わせ内容はメールにて送信しました。問い合わせありがとうございます。")
         return redirect(url_for("contact_complete"))
 
     return render_template("contact_complete.html")
+
+
+def send_email(to, subject, template, **kwargs):
+    """メールを送信する関数"""
+    msg = Message(subject, recipients=[to])
+    msg.body = render_template(template + ".txt", **kwargs)
+    msg.html = render_template(template + ".html", **kwargs)
+    mail.send(msg)
